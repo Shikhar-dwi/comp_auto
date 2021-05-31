@@ -1,2 +1,2 @@
 # comp_auto
-first intall tensorflow compression tfc
+first install tensorflow compression tfc
