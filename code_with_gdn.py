@@ -20,7 +20,7 @@ class Encoder(tf.keras.Sequential):
   """The Encoder"""
 
   def __init__(self, num_filters):
-    super().__init__(name="analysis")
+    super().__init__(name="Encoder")
     self.add(tf.keras.layers.Lambda(lambda x: x / 255.))
     self.add(tfc.SignalConv2D(
         128, (7, 7), name="layer_0", corr=True, strides_down=4,
@@ -40,7 +40,7 @@ class Decoder(tf.keras.Sequential):
   """The Decoder."""
 
   def __init__(self, num_filters):
-    super().__init__(name="synthesis")
+    super().__init__(name="Decoder")
     self.add(tfc.SignalConv2D(
         num_filters, (5, 5), name="layer_0", corr=False, strides_up=2,
         padding="same_zeros", use_bias=True,
