@@ -291,7 +291,7 @@ def train(args):
 
   model = comp_auto(args.lmbda, args.num_filters)
   model.compile(
-      optimizer=tf.keras.optimizers.Adam(learning_rate=5e-4),#learning_rate=1e-4
+      optimizer=tf.keras.optimizers.Adam(learning_rate=args.lr),#learning_rate=1e-4
   )
 #   model = tf.keras.models.load_model(args.model_path+"/"+str(args.lmbda)+"_"+str(args.num_filters))
 #   model.load_weights("weights/"+'a_model_weights'+str(args.lmbda)+"_"+str(args.num_filters)+'.h5')
@@ -434,6 +434,9 @@ def parse_args(argv):
   train_cmd.add_argument(
       "--num_filters", type=int, default=192,
       help="Number of filters in bottleneck layer.")
+  train_cmd.add_argument(
+      "--lr", type=float, default=0.0001,
+      help="Learning rate for training and validation.")
   train_cmd.add_argument(
       "--train_path", default="/tmp/saved_codegdn",
       help="Path where to log training metrics ")
