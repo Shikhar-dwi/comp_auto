@@ -15,15 +15,43 @@ import tensorflow_compression as tfc
 
 
 
+class Encode7(tf.keras.Sequential):
+  """The Encoder"""
+  def __init__(self):
+    super().__init__(name="Encoder7")
+    self.add(tf.keras.layers.Lambda(lambda x: x / 255.))
+    self.add(tfc.SignalConv2D(
+        64, (7, 7), name="layer7_0", corr=True, strides_down=4,
+        padding="same_zeros", use_bias=True,
+        activation=tfc.GDN(name="gdn7_0", inverse=False)))
+
+class Encode5(tf.keras.Sequential):
+  """The Encoder"""
+  def __init__(self):
+    super().__init__(name="Encoder5")
+    self.add(tf.keras.layers.Lambda(lambda x: x / 255.))
+    self.add(tfc.SignalConv2D(
+        64, (5, 5), name="layer5_0", corr=True, strides_down=4,
+        padding="same_zeros", use_bias=True,
+        activation=tfc.GDN(name="gdn5_0", inverse=False)))
+        
+class Encode3(tf.keras.Sequential):
+  """The Encoder"""
+  def __init__(self):
+    super().__init__(name="Encoder3")
+    self.add(tf.keras.layers.Lambda(lambda x: x / 255.))
+    self.add(tfc.SignalConv2D(
+        64, (3, 3), name="layer3_0", corr=True, strides_down=4,
+        padding="same_zeros", use_bias=True,
+        activation=tfc.GDN(name="gdn3_0", inverse=False)))
 
 class Encoder(tf.keras.Sequential):
   """The Encoder"""
 
   def __init__(self, num_filters):
     super().__init__(name="Encoder")
-    self.add(tf.keras.layers.Lambda(lambda x: x / 255.))
     self.add(tfc.SignalConv2D(
-        128, (7, 7), name="layer_0", corr=True, strides_down=4,
+        128, (5, 5), name="layer_0", corr=True, strides_down=4,
         padding="same_zeros", use_bias=True,
         activation=tfc.GDN(name="gdn_0")))
     self.add(tfc.SignalConv2D(
@@ -33,7 +61,7 @@ class Encoder(tf.keras.Sequential):
     self.add(tfc.SignalConv2D(
         num_filters, (5, 5), name="layer_2", corr=True, strides_down=2,
         padding="same_zeros", use_bias=False,
-        activation=None))
+        activation=tfc.GDN(name="gdn_2")))
 
 
 class Decoder(tf.keras.Sequential):
@@ -50,14 +78,47 @@ class Decoder(tf.keras.Sequential):
         padding="same_zeros", use_bias=True,
         activation=tfc.GDN(name="igdn_1", inverse=True)))
     self.add(tfc.SignalConv2D(
-        128, (7, 7), name="layer_3", corr=False, strides_up=4,
+        128, (5, 5), name="layer_3", corr=False, strides_up=4,
         padding="same_zeros", use_bias=True,
-        activation=tf.nn.relu))
+        activation=tfc.GDN(name="igdn_2", inverse=True)))
+
+class Decode7(tf.keras.Sequential):
+  """The Decoder."""
+  def __init__(self):
+    super().__init__(name="Decoder7")
     self.add(tfc.SignalConv2D(
-        3, (7, 7), name="layer_4", corr=False, strides_up=1,
+        32, (7, 7), name="layer7_1", corr=False, strides_up=4,
         padding="same_zeros", use_bias=True,
-        activation=tf.nn.sigmoid))
+        activation=tfc.GDN(name="igdn7_0", inverse=True)))
+        
+class Decode5(tf.keras.Sequential):
+  """The Decoder."""
+  def __init__(self):
+    super().__init__(name="Decoder7")
+    self.add(tfc.SignalConv2D(
+        32, (5, 5), name="layer5_1", corr=False, strides_up=4,
+        padding="same_zeros", use_bias=True,
+        activation=tfc.GDN(name="igdn5_0", inverse=True)))
+        
+class Decode3(tf.keras.Sequential):
+  """The Decoder."""
+  def __init__(self):
+    super().__init__(name="Decoder7")
+    self.add(tfc.SignalConv2D(
+        32, (3, 3), name="layer3_1", corr=False, strides_up=4,
+        padding="same_zeros", use_bias=True,
+        activation=tfc.GDN(name="igdn3_0", inverse=True)))
+        
+class Decoder_final(tf.keras.Sequential):
+  """The Decoder."""
+  def __init__(self):
+    super().__init__(name="Decoder_final")
+    self.add(tfc.SignalConv2D(
+        3, (5, 5), name="layerf_6", corr=False, strides_up=1,
+        padding="same_zeros", use_bias=True,
+        activation=None))
     self.add(tf.keras.layers.Lambda(lambda x: x * 255.))
+
 
 
 class comp_auto(tf.keras.Model):
@@ -66,8 +127,15 @@ class comp_auto(tf.keras.Model):
   def __init__(self, lmbda, num_filters):
     super().__init__()
     self.lmbda = lmbda
-    self.encoder = Encoder(num_filters)
+    self.Encoder = Encoder(num_filters)
+    self.Encode7 = Encode7()
+    self.Encode5 = Encode5()
+    self.Encode3 = Encode3()
     self.decoder = Decoder(num_filters)
+    self.Decode7 = Decode7()
+    self.Decode5 = Decode5()
+    self.Decode3 = Decode3()
+    self.Definal = Decoder_final()
     self.prior = tfc.NoisyDeepFactorized(batch_shape=(num_filters,))
     self.build((None, None, None, 3))
 
@@ -75,9 +143,21 @@ class comp_auto(tf.keras.Model):
     """Computes rate and distortion losses."""
     entropy_model = tfc.ContinuousBatchedEntropyModel(
         self.prior, coding_rank=3, compression=False)
-    y = self.encoder(x)
+    
+    y5 = self.Encode5(x)
+    y7 = self.Encode7(x)
+    y3 = self.Encode3(x)
+    y1 = tf.keras.layers.concatenate( [y7, y5 ,y3] )
+    y = self.Encoder(y1)
+    
     y_hat, bits = entropy_model(y, training=training)
+    
     x_hat = self.decoder(y_hat)
+    z5 = self.Decode7(x_hat)
+    z7 = self.Decode5(x_hat)
+    z3 = self.Decode3(x_hat)
+    z1 = tf.keras.layers.concatenate( [z7, z5 ,z3] )
+    x_hat = self.Definal(z1)
     
     num_pixels = tf.cast(tf.reduce_prod(tf.shape(x)[:-1]), bits.dtype)
     bpp = tf.reduce_sum(bits) / num_pixels
@@ -138,7 +218,13 @@ class comp_auto(tf.keras.Model):
     # Add batch dimension and cast to float.
     x = tf.expand_dims(x, 0)
     x = tf.cast(x, dtype=tf.float32)
-    y = self.encoder(x)
+    
+    y5 = self.Encode5(x)
+    y7 = self.Encode7(x)
+    y3 = self.Encode3(x)
+    y1 = tf.keras.layers.concatenate( [y7, y5 ,y3] )
+    y = self.Encoder(y1)
+    
     # Including shapes of both image and bottleneck layer tensor.
     x_shape = tf.shape(x)[1:-1]
     y_shape = tf.shape(y)[1:-1]
@@ -153,7 +239,14 @@ class comp_auto(tf.keras.Model):
   def decompress(self, string, x_shape, y_shape):
     """Decompresses an image."""
     y_hat = self.entropy_model.decompress(string, y_shape)
+    
     x_hat = self.decoder(y_hat)
+    z5 = self.Decode7(x_hat)
+    z7 = self.Decode5(x_hat)
+    z3 = self.Decode3(x_hat)
+    z1 = tf.keras.layers.concatenate( [z7, z5 ,z3] )
+    x_hat = self.Definal(z1)
+    
     x_hat = x_hat[0, :x_shape[0], :x_shape[1], :]
     # x_hat = x_hat * 255
     return tf.saturate_cast(tf.round(x_hat), tf.uint8)# Then casting to integer.
@@ -319,7 +412,7 @@ def parse_args(argv):
       "--verbose", "-V", action="store_true",
       help="Report progress and metrics when training, compressing or decompressing")
   parser.add_argument(
-      "--model_path", default="modelgdna",
+      "--model_path", default="modelcomp",
       help="Path where to save/load the trained model.")
   subparsers = parser.add_subparsers(
       title="commands", dest="command",
@@ -342,7 +435,7 @@ def parse_args(argv):
       "--num_filters", type=int, default=192,
       help="Number of filters in bottleneck layer.")
   train_cmd.add_argument(
-      "--train_path", default="/tmp/train_codegdna1",
+      "--train_path", default="/tmp/saved_codegdn",
       help="Path where to log training metrics ")
   train_cmd.add_argument(
       "--batch_size", type=int, default=8,
